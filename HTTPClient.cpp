@@ -6,8 +6,8 @@
  *
  * Copyright (c) 2015 Markus Sattler. All rights reserved.
  * This file is part of the HTTPClient for Arduino.
- * Port to ESP32 by Evandro Luis Copercini (2017), 
- * changed fingerprints to CA verification. 												 
+ * Port to ESP32 by Evandro Luis Copercini (2017),
+ * changed fingerprints to CA verification.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,7 +27,7 @@
  */
 
 #include <Arduino.h>
-#include <esp32-hal-log.h>  
+#include <esp32-hal-log.h>
 
 #ifdef HTTPCLIENT_1_1_COMPATIBLE
 #include <WiFi.h>
@@ -126,7 +126,39 @@ void HTTPClient::clear()
     _size = -1;
     _headers = "";
 }
+/**
+ * Connect to Proxy server to conunicate with https
+ * @param proxyaddress String **For independance
+ * @param proxyport String **For independance
+ * @param serveraddress String **For independance It must includes port
+ * @return success bool
+**/
+bool HTTPClient::ConnectToProxy(String _hostproc, int _portproc, String _uri){
+  setReuse(true);
+  if(!_client->connect(_hostproc.c_str(), _portproc, _connectTimeout)) {
+      log_d("[Proxy] failed connect to %s:%d", _hostproc.c_str(), _portproc);
+      return false;
+  }
 
+  String send_connect = "CONNECT " + _uri + F(" HTTP/1.");
+
+  if(_useHTTP10) {
+      send_connect += "0";
+  } else {
+      send_connect += "1";
+  }
+  if(!(_client->write((const uint8_t *) send_connect.c_str(), send_connect.length()) == send_connect.length())){
+    log_d("[Proxy] failed send connect request");
+    return false;
+  }
+  String c = "";
+  while(_client->available() > 0) {
+       c+= _client->read();
+  }
+  log_d("%s",c.c_str());
+
+return true;
+}
 
 /**
  * parsing the url for all needed parameters
@@ -596,7 +628,7 @@ int HTTPClient::sendRequest(const char * type, uint8_t * payload, size_t size)
         }
 
         log_d("request type: '%s' redirCount: %d\n", type, redirectCount);
-        
+
         // connect to server
         if(!connect()) {
             return returnError(HTTPC_ERROR_CONNECTION_REFUSED);
@@ -649,7 +681,7 @@ int HTTPClient::sendRequest(const char * type, uint8_t * payload, size_t size)
         //
         redirect = false;
         if (
-            _followRedirects != HTTPC_DISABLE_FOLLOW_REDIRECTS && 
+            _followRedirects != HTTPC_DISABLE_FOLLOW_REDIRECTS &&
             redirectCount < _redirectLimit &&
             _location.length() > 0
         ) {
@@ -662,7 +694,7 @@ int HTTPClient::sendRequest(const char * type, uint8_t * payload, size_t size)
                         // (the RFC require user to accept the redirection)
                         _followRedirects == HTTPC_FORCE_FOLLOW_REDIRECTS ||
                         // allow GET and HEAD methods without force
-                        !strcmp(type, "GET") || 
+                        !strcmp(type, "GET") ||
                         !strcmp(type, "HEAD")
                     ) {
                         redirectCount += 1;
@@ -987,7 +1019,7 @@ String HTTPClient::getString(void)
         // try to reserve needed memory (noop if _size == -1)
         if(sstring.reserve((_size + 1))) {
             writeToStream(&sstring);
-            return sstring;            
+            return sstring;
         } else {
             log_d("not enough memory to reserve a string! need: %d", (_size + 1));
         }
@@ -1157,7 +1189,7 @@ bool HTTPClient::connect(void)
         log_d("transport level verify failed");
         _client->stop();
         return false;
-    }	
+    }
 #endif
     if(!_client->connect(_host.c_str(), _port, _connectTimeout)) {
         log_d("failed connect to %s:%u", _host.c_str(), _port);
@@ -1165,7 +1197,7 @@ bool HTTPClient::connect(void)
     }
 
     // set Timeout for WiFiClient and for Stream::readBytesUntil() and Stream::readStringUntil()
-    _client->setTimeout((_tcpTimeout + 500) / 1000);	
+    _client->setTimeout((_tcpTimeout + 500) / 1000);
 
     log_d(" connected to %s:%u", _host.c_str(), _port);
 
@@ -1220,7 +1252,7 @@ bool HTTPClient::sendHeader(const char * type)
     if(_base64Authorization.length()) {
         _base64Authorization.replace("\n", "");
         header += F("Authorization: ");
-        header += _authorizationType; 
+        header += _authorizationType;
         header += " ";
         header += _base64Authorization;
         header += "\r\n";
@@ -1399,8 +1431,8 @@ int HTTPClient::writeToStreamDataBlock(Stream * stream, int size)
                 if(readBytes > buff_size) {
                     readBytes = buff_size;
                 }
-		    
-        		// stop if no more reading    
+
+        		// stop if no more reading
         		if (readBytes == 0)
         			break;
 
@@ -1528,8 +1560,8 @@ bool HTTPClient::setURL(const String& url)
         _port = (_protocol == "https" ? 443 : 80);
     }
 
-    // disconnect but preserve _client. 
-    // Also have to keep the connection otherwise it will free some of the memory used by _client 
+    // disconnect but preserve _client.
+    // Also have to keep the connection otherwise it will free some of the memory used by _client
     // and will blow up later when trying to do _client->available() or similar
     _canReuse = true;
     disconnect(true);
@@ -1677,7 +1709,7 @@ void HTTPClient::setCookie(String date, String headerValue)
     }
 
     // add cookie to jar
-    if (!found && !(cookie.max_age.valid && cookie.max_age.duration <= 0)) 
+    if (!found && !(cookie.max_age.valid && cookie.max_age.duration <= 0))
         _cookieJar->push_back(cookie);
 
 }
@@ -1706,6 +1738,6 @@ bool HTTPClient::generateCookieString(String *cookieString)
             found = true;
         }
     }
-    
+
     return found;
 }
